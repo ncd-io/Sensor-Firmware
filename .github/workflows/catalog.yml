@@ -1,0 +1,33 @@
+# Rebuild catalog.json whenever a release changes, and publish it as the asset
+# of the rolling `catalog` release — the one URL every Atrium gateway reads:
+#   https://github.com/ncd-io/Sensor-Firmware/releases/download/catalog/catalog.json
+name: catalog
+on:
+  release:
+    types: [published, edited, deleted, prereleased, released, unpublished]
+  workflow_dispatch:
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/build-catalog.js > catalog.json
+      - name: Publish catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view catalog >/dev/null 2>&1 || \
+            gh release create catalog --title "Firmware catalog" --latest=false \
+              --notes "Machine-readable index of every firmware release. Generated; do not edit."
+          gh release upload catalog catalog.json --clobber
